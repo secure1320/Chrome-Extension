@@ -16,11 +16,18 @@ tokio = { version = "1", default-features = false, features = ["rt", "macros", "
 tungstenite = { version = "0.30", default-features = false, features = ["handshake", "native-tls"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+png = "0.18"
 
 [dependencies.windows]
 version = "0.62"
 features = [
     "Win32_Foundation",
+    "Win32_Graphics_Gdi",
+    "Win32_System_DataExchange",
+    "Win32_System_Memory",
+    "Win32_UI_HiDpi",
+    "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
     "Win32_Media_Audio",
     "Win32_Media_KernelStreaming",
     "Win32_Media_Multimedia",

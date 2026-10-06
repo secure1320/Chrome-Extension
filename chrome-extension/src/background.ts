@@ -38,6 +38,7 @@ const snapshot: Snapshot = {
   partialBlockAt: null,
   error: null,
   target: null,
+  capture: null,
 };
 
 let sessionStart: number | null = null;
@@ -160,8 +161,21 @@ function onNativeMessage(message: NativeMessage): void {
     case "device_changed":
       snapshot.device = message.device;
       break;
+    case "screen_captured":
+      snapshot.capture = { busy: false, failed: false, message: captureSummary(message) };
+      break;
     case "error":
-      snapshot.error = { code: message.code, message: message.message };
+      if (message.code === "SCREEN_CAPTURE_FAILED") {
+        snapshot.capture = { busy: false, failed: true, message: message.message };
+      } else if (message.code === "INVALID_COMMAND" && snapshot.capture?.busy) {
+        snapshot.capture = {
+          busy: false,
+          failed: true,
+          message: "The companion is out of date. Run native-companion\\installer\\install.ps1 -Build again.",
+        };
+      } else {
+        snapshot.error = { code: message.code, message: message.message };
+      }
       break;
   }
   broadcast();
@@ -174,6 +188,9 @@ function onNativeDisconnect(): void {
   snapshot.connection = "disconnected";
   snapshot.state = "stopped";
   endSegment();
+  if (snapshot.capture?.busy) {
+    snapshot.capture = { busy: false, failed: true, message: "The companion disconnected during the capture." };
+  }
   snapshot.error = { code: "COMPANION_DISCONNECTED", message: reason };
   broadcast();
   forwardTranscript("", false);
@@ -211,6 +228,22 @@ export function stopListening(): void {
 
 export function getStatus(): void {
   postNative({ type: "status" });
+}
+
+function captureSummary(result: Extract<NativeMessage, { type: "screen_captured" }>): string {
+  const name = result.path?.split("\\").pop();
+  if (name && result.copied) return `Saved ${name} to Downloads and copied it to the clipboard.`;
+  if (name) return `Saved ${name} to Downloads. Copying to the clipboard failed.`;
+  return "Copied to the clipboard. Saving to Downloads failed.";
+}
+
+export function captureScreen(): void {
+  if (snapshot.capture?.busy) return;
+  if (!nativePort) connectCompanion();
+  snapshot.capture = postNative({ type: "capture_screen" })
+    ? { busy: true, failed: false, message: "Capturing the screen…" }
+    : { busy: false, failed: true, message: "The companion is not connected." };
+  broadcast();
 }
 
 function publishTarget(): void {
@@ -348,6 +381,9 @@ chrome.runtime.onConnect.addListener((port) => {
         break;
       case "unlock-target":
         unlockTarget();
+        break;
+      case "capture-screen":
+        captureScreen();
         break;
     }
   });

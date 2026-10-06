@@ -14,6 +14,7 @@ use crate::convert::{self, CaptureEvent, PcmChunkSink};
 use crate::deepgram::{self, DeepgramConfig, DeepgramError, TranscriptEvent};
 use crate::messaging::Inbound;
 use crate::protocol::{Command, ErrorCode, OutMessage};
+use crate::screen;
 use crate::{log_error, log_info, log_warn};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -266,6 +267,42 @@ impl Controller {
                 ListenState::Listening => self.begin_stop(None),
                 ListenState::Stopping => {}
             },
+            Command::CaptureScreen => self.begin_capture(),
+        }
+    }
+
+    /// Independent of listening; runs off-thread and reports back on its own.
+    fn begin_capture(&self) {
+        let out = self.out.clone();
+        let spawned = std::thread::Builder::new()
+            .name("screen-capture".into())
+            .spawn(move || {
+                let msg = match screen::capture_and_save() {
+                    Ok(outcome) => {
+                        log_info!(
+                            "Screen captured: {}x{}, saved={}, copied={}",
+                            outcome.width,
+                            outcome.height,
+                            outcome.path.is_some(),
+                            outcome.copied
+                        );
+                        OutMessage::ScreenCaptured {
+                            path: outcome.path.map(|p| p.display().to_string()),
+                            copied: outcome.copied,
+                            width: outcome.width,
+                            height: outcome.height,
+                        }
+                    }
+                    Err(e) => {
+                        log_error!("Screen capture failed: {e}");
+                        OutMessage::error(ErrorCode::ScreenCaptureFailed)
+                    }
+                };
+                let _ = out.send(msg);
+            });
+        if let Err(e) = spawned {
+            log_error!("Could not spawn capture thread: {e}");
+            self.send(OutMessage::error(ErrorCode::ScreenCaptureFailed));
         }
     }
 

@@ -188,6 +188,17 @@ button.primary.stop {
   font-size: 12px;
 }
 
+.capture-status {
+  margin-top: 6px;
+  color: var(--ok);
+  font-size: 12px;
+  word-break: break-word;
+}
+
+.capture-status.failed {
+  color: var(--live);
+}
+
 .note {
   margin: 10px 0 0;
   font-size: 11px;

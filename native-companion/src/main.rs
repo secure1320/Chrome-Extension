@@ -5,6 +5,7 @@ mod devtools;
 mod logging;
 mod messaging;
 mod protocol;
+mod screen;
 mod state;
 
 fn main() {
@@ -15,6 +16,7 @@ fn main() {
         Some("--meter") => devtools::run_meter(parse_seconds(&args)),
         Some("--pcm-test") => devtools::run_pcm_test(parse_seconds(&args)),
         Some("--transcribe-stderr") => devtools::run_transcribe_stderr(parse_seconds(&args)),
+        Some("--capture-screen") => run_capture_screen(),
         Some("--help") | Some("-h") | None => {
             print_usage();
             0
@@ -36,8 +38,29 @@ fn print_usage() {
          system-audio-companion.exe --meter [--seconds N]      Show a live system-audio level meter\n  \
          system-audio-companion.exe --pcm-test [--seconds N]   Show PCM16 mono conversion statistics\n  \
          system-audio-companion.exe --transcribe-stderr [--seconds N]\n      \
-         Stream system audio to Deepgram and print transcripts (needs DEEPGRAM_API_KEY)\n"
+         Stream system audio to Deepgram and print transcripts (needs DEEPGRAM_API_KEY)\n  \
+         system-audio-companion.exe --capture-screen        Save a cropped primary-display screenshot\n"
     );
+}
+
+fn run_capture_screen() -> i32 {
+    match screen::capture_and_save() {
+        Ok(o) => {
+            let saved = o.path.map(|p| p.display().to_string());
+            eprintln!(
+                "Captured {}x{}; saved: {}; copied to clipboard: {}",
+                o.width,
+                o.height,
+                saved.as_deref().unwrap_or("no"),
+                o.copied
+            );
+            0
+        }
+        Err(e) => {
+            eprintln!("Screen capture failed: {e}");
+            1
+        }
+    }
 }
 
 fn parse_seconds(args: &[String]) -> Option<u64> {

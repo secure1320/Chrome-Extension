@@ -20,6 +20,8 @@ const reconnect = el<HTMLButtonElement>("reconnect");
 const targetText = el<HTMLSpanElement>("target-text");
 const targetProblem = el<HTMLDivElement>("target-problem");
 const lock = el<HTMLButtonElement>("lock");
+const capture = el<HTMLButtonElement>("capture");
+const captureStatus = el<HTMLDivElement>("capture-status");
 
 const port = chrome.runtime.connect({ name: POPUP_PORT_NAME });
 const send = (command: PopupCommand) => port.postMessage(command);
@@ -128,6 +130,11 @@ function render(s: Snapshot): void {
   }
   targetProblem.hidden = !s.target?.problem;
   targetProblem.textContent = s.target?.problem ?? "";
+
+  capture.disabled = s.capture?.busy === true || s.connection === "connecting";
+  captureStatus.hidden = !s.capture;
+  captureStatus.textContent = s.capture?.message ?? "";
+  captureStatus.classList.toggle("failed", s.capture?.failed === true);
 }
 
 port.onMessage.addListener((update: PopupUpdate) => {
@@ -141,3 +148,4 @@ toggle.addEventListener("click", () => {
 clear.addEventListener("click", () => send({ cmd: "clear" }));
 reconnect.addEventListener("click", () => send({ cmd: "reconnect" }));
 lock.addEventListener("click", () => send({ cmd: current?.target ? "unlock-target" : "lock-target" }));
+capture.addEventListener("click", () => send({ cmd: "capture-screen" }));

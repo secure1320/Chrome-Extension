@@ -15,6 +15,9 @@ Windows audio engine -> WASAPI loopback (default RENDER endpoint)
 - Raw audio goes only to Deepgram. The extension receives only transcript, status, and
   error JSON.
 - Audio is never written to disk.
+- **Capture Screen** (side panel) is done by the companion with Windows GDI, so Chrome
+  shows no screen picker. The PNG stays local (Downloads + clipboard) and is never sent to
+  the extension or the network.
 
 ## Repository layout
 
@@ -35,6 +38,7 @@ native-companion/          Rust companion (Windows 11)
   src/protocol.rs          command/response types
   src/state.rs             Stopped/Starting/Listening/Stopping/Error state machine
   src/devtools.rs          --meter, --pcm-test, --transcribe-stderr
+  src/screen.rs            primary-display capture, 10% top/bottom crop, PNG, clipboard
   installer/               install.ps1, uninstall.ps1, manifest template
   tools/                   test harnesses (Native Messaging, mock Deepgram, Chrome E2E)
 ```
@@ -132,6 +136,14 @@ If you type or move the caret in the box while it is live, your edits are kept a
 transcript continues from the caret. Chrome doesn't allow extensions on `chrome://` pages
 or the Chrome Web Store.
 
+#### Capture the screen
+
+Click **Capture Screen** in the side panel. The companion captures the primary display at
+its full physical resolution, crops off the top 10% and bottom 10% (1920x1080 becomes
+1920x864), saves `Screenshot YYYY-MM-DD HHMMSS.png` to your Downloads folder and copies the
+image to the clipboard, ready to paste with Ctrl+V. It works whether or not you are
+listening.
+
 ## Developer modes
 
 Run these from a terminal. Their output goes to stderr.
@@ -141,6 +153,7 @@ cd native-companion
 .\target\release\system-audio-companion.exe --meter              # live level meter
 .\target\release\system-audio-companion.exe --pcm-test           # PCM16 conversion stats
 .\target\release\system-audio-companion.exe --transcribe-stderr  # Deepgram transcripts
+.\target\release\system-audio-companion.exe --capture-screen     # cropped screenshot to Downloads + clipboard
 ```
 
 Each mode accepts `--seconds N`.
@@ -183,7 +196,8 @@ audio becomes system output and will be transcribed. This is expected.
 
 ## Native Messaging protocol
 
-Extension to companion: `{"type":"start"}`, `{"type":"stop"}`, `{"type":"status"}`.
+Extension to companion: `{"type":"start"}`, `{"type":"stop"}`, `{"type":"status"}`,
+`{"type":"capture_screen"}`.
 
 Companion to extension:
 
@@ -194,12 +208,13 @@ Companion to extension:
 {"type":"transcript_partial","text":"Hello every"}
 {"type":"transcript_final","text":"Hello everyone."}
 {"type":"device_changed","device":"Headphones (USB Audio)"}
+{"type":"screen_captured","path":"C:\\Users\\me\\Downloads\\Screenshot 2026-10-05 235234.png","copied":true,"width":1920,"height":864}
 {"type":"error","code":"NO_API_KEY","message":"DEEPGRAM_API_KEY is not configured."}
 ```
 
 Error codes: `NO_API_KEY`, `NO_OUTPUT_DEVICE`, `AUDIO_INIT_FAILED`, `AUDIO_DEVICE_LOST`,
 `DEEPGRAM_AUTH_FAILED`, `DEEPGRAM_CONNECTION_FAILED`, `DEEPGRAM_DISCONNECTED`,
-`INVALID_COMMAND`.
+`INVALID_COMMAND`, `SCREEN_CAPTURE_FAILED`.
 
 `start` and `stop` are idempotent. Sending `start` while listening returns the current
 status, and sending `stop` while stopped returns `stopped`.

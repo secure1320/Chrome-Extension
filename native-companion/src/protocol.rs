@@ -1,5 +1,5 @@
 //! JSON messages exchanged with the Chrome extension. Only text/status/errors
-//! ever leave the companion; raw audio never does.
+//! ever leave the companion; raw audio and screenshots never do.
 
 use serde::{Deserialize, Serialize};
 
@@ -9,6 +9,9 @@ pub enum Command {
     Start,
     Stop,
     Status,
+    /// Screenshot of the primary display, top and bottom 10% cropped, saved to
+    /// Downloads and copied to the clipboard.
+    CaptureScreen,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -22,6 +25,7 @@ pub enum ErrorCode {
     DeepgramConnectionFailed,
     DeepgramDisconnected,
     InvalidCommand,
+    ScreenCaptureFailed,
 }
 
 impl ErrorCode {
@@ -36,6 +40,7 @@ impl ErrorCode {
             ErrorCode::DeepgramConnectionFailed => "Could not connect to transcription service.",
             ErrorCode::DeepgramDisconnected => "Lost connection to transcription service.",
             ErrorCode::InvalidCommand => "Unsupported command.",
+            ErrorCode::ScreenCaptureFailed => "Could not capture the screen.",
         }
     }
 }
@@ -64,6 +69,13 @@ pub enum OutMessage {
     DeviceChanged {
         device: String,
     },
+    /// `path` is None when saving failed but the clipboard copy worked (and vice versa for `copied`).
+    ScreenCaptured {
+        path: Option<String>,
+        copied: bool,
+        width: u32,
+        height: u32,
+    },
     Error {
         code: ErrorCode,
         message: &'static str,
@@ -89,6 +101,10 @@ mod tests {
         assert_eq!(serde_json::from_str::<Command>(r#"{"type":"start"}"#).unwrap(), Command::Start);
         assert_eq!(serde_json::from_str::<Command>(r#"{"type":"stop"}"#).unwrap(), Command::Stop);
         assert_eq!(serde_json::from_str::<Command>(r#"{"type":"status"}"#).unwrap(), Command::Status);
+        assert_eq!(
+            serde_json::from_str::<Command>(r#"{"type":"capture_screen"}"#).unwrap(),
+            Command::CaptureScreen
+        );
         assert!(serde_json::from_str::<Command>(r#"{"type":"record_mic"}"#).is_err());
     }
 
@@ -122,5 +138,15 @@ mod tests {
             json!({"type":"error","code":"NO_API_KEY","message":"DEEPGRAM_API_KEY is not configured."})
         );
         assert_eq!(serde_json::to_value(OutMessage::Stopped).unwrap(), json!({"type":"stopped"}));
+        assert_eq!(
+            serde_json::to_value(OutMessage::ScreenCaptured {
+                path: Some("C:\\Downloads\\shot.png".into()),
+                copied: true,
+                width: 1920,
+                height: 864,
+            })
+            .unwrap(),
+            json!({"type":"screen_captured","path":"C:\\Downloads\\shot.png","copied":true,"width":1920,"height":864})
+        );
     }
 }

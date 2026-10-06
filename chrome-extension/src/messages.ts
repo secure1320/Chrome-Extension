@@ -14,10 +14,15 @@ export type NativeMessage =
   | { type: "transcript_partial"; text: string }
   | { type: "transcript_final"; text: string }
   | { type: "device_changed"; device: string }
+  | { type: "screen_captured"; path: string | null; copied: boolean; width: number; height: number }
   | { type: "error"; code: string; message: string };
 
 /** Commands the extension sends to the native companion. */
-export type NativeCommand = { type: "start" } | { type: "stop" } | { type: "status" };
+export type NativeCommand =
+  | { type: "start" }
+  | { type: "stop" }
+  | { type: "status" }
+  | { type: "capture_screen" };
 
 export type CompanionConnection = "connecting" | "connected" | "disconnected";
 
@@ -39,6 +44,8 @@ export interface Snapshot {
   error: { code: string; message: string } | null;
   /** Tab the transcript is being typed into, if one is locked. */
   target: { title: string; problem: string | null } | null;
+  /** Result of the last Capture Screen click. */
+  capture: { busy: boolean; failed: boolean; message: string } | null;
 }
 
 /** Popup -> service worker. */
@@ -49,7 +56,8 @@ export type PopupCommand =
   | { cmd: "reconnect" }
   | { cmd: "clear" }
   | { cmd: "lock-target" }
-  | { cmd: "unlock-target" };
+  | { cmd: "unlock-target" }
+  | { cmd: "capture-screen" };
 
 /** Service worker -> popup. */
 export type PopupUpdate = { kind: "snapshot"; snapshot: Snapshot };
