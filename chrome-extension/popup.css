@@ -115,6 +115,16 @@ h2 {
   word-wrap: break-word;
 }
 
+.block + .block {
+  margin-top: 10px;
+}
+
+.ts {
+  margin-right: 6px;
+  color: var(--muted);
+  font: 11px/1.45 ui-monospace, Consolas, monospace;
+}
+
 .partial {
   color: var(--muted);
   font-style: italic;

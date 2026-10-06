@@ -14,8 +14,6 @@ const device = el<HTMLDivElement>("device");
 const errorBox = el<HTMLDivElement>("error");
 const transcriptSection = el<HTMLElement>("transcript-section");
 const transcript = el<HTMLDivElement>("transcript");
-const finals = el<HTMLSpanElement>("finals");
-const partial = el<HTMLSpanElement>("partial");
 const toggle = el<HTMLButtonElement>("toggle");
 const clear = el<HTMLButtonElement>("clear");
 const reconnect = el<HTMLButtonElement>("reconnect");
@@ -44,6 +42,48 @@ function statusLabel(s: Snapshot): { text: string; tone: string } {
   }
 }
 
+function formatTime(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return h ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
+}
+
+function setText(node: Element, text: string): void {
+  if (node.textContent !== text) node.textContent = text;
+}
+
+/** Updates the block elements in place so a new partial doesn't rebuild the whole transcript. */
+function renderTranscript(s: Snapshot): void {
+  const rows = s.blocks.map((b) => ({ at: b.at, text: b.text, partial: "" }));
+  if (s.partial) {
+    const last = rows[rows.length - 1];
+    if (s.partialBlockAt !== null || !last) rows.push({ at: s.partialBlockAt ?? 0, text: "", partial: s.partial });
+    else last.partial = s.partial;
+  }
+
+  while (transcript.children.length > rows.length) transcript.lastElementChild?.remove();
+  rows.forEach((row, i) => {
+    let block = transcript.children[i];
+    if (!block) {
+      block = document.createElement("div");
+      block.className = "block";
+      for (const cls of ["ts", "text", "partial"]) {
+        const span = document.createElement("span");
+        span.className = cls;
+        block.append(span);
+      }
+      transcript.append(block);
+    }
+    const [ts, text, partial] = block.children;
+    setText(ts, `[${formatTime(row.at)}]`);
+    setText(text, row.text);
+    setText(partial, row.partial ? (row.text ? " " : "") + row.partial : "");
+  });
+}
+
 function render(s: Snapshot): void {
   current = s;
   const { text, tone } = statusLabel(s);
@@ -64,11 +104,10 @@ function render(s: Snapshot): void {
     errorBox.textContent = "";
   }
 
-  const hasText = s.finals.length > 0 || s.partial.length > 0;
+  const hasText = s.blocks.length > 0 || s.partial.length > 0;
   transcriptSection.hidden = !hasText && s.state !== "listening";
   const atBottom = transcript.scrollHeight - transcript.scrollTop - transcript.clientHeight < 24;
-  finals.textContent = s.finals.join(" ");
-  partial.textContent = s.partial ? (s.finals.length ? " " : "") + s.partial : "";
+  renderTranscript(s);
   if (atBottom) transcript.scrollTop = transcript.scrollHeight;
 
   const active = s.state === "listening" || s.state === "starting";

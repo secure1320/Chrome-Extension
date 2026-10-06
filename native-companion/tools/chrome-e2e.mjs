@@ -132,7 +132,7 @@ try {
       "-Command",
       'Add-Type -AssemblyName System.Speech; (New-Object System.Speech.Synthesis.SpeechSynthesizer).Speak("Hello everyone, thanks for joining the meeting today.")',
     ]);
-    const text = await waitForText(sessionId, "#finals", (t) => t.length > 0, 8000, "final transcript");
+    const text = await waitForText(sessionId, "#transcript .text", (t) => t.length > 0, 8000, "final transcript");
     check(text.length > 0, `transcript displayed: ${JSON.stringify(text)}`);
     if (screenshotPath) {
       await cdp("Emulation.setDeviceMetricsOverride", { width: 392, height: 420, deviceScaleFactor: 1, mobile: false }, sessionId);

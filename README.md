@@ -113,7 +113,9 @@ To remove it:
 Click the extension's toolbar icon to open it in Chrome's side panel, then click
 **Start Listening**. The panel shows **Listening**
 while capture is active. Partial results appear in grey italics and are replaced by the
-final text. Click **Stop Listening** to stop capture immediately and close the
+final text. The transcript is split into blocks at pauses of 3 seconds or more, each
+stamped with the time since you first clicked Start (for example `[1:30]`); the clock keeps
+running across Stop/Start and restarts at `[0:00]` when you click **Clear**. Click **Stop Listening** to stop capture immediately and close the
 Deepgram connection. The transcript is kept in memory until you click **Clear** or Chrome
 closes.
 

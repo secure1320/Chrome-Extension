@@ -31,11 +31,11 @@
   })();
 
   let lastEditable: HTMLElement | null = null;
+  let lastEditableId = "";
   let focusedAt = 0;
   let savedRange: Range | null = null;
-  /** Text this script inserted into `liveElement` for the current, not yet final, segment (including its leading space). */
+  /** Text this script inserted for the current, not yet final, segment (including its leading space). */
   let live = "";
-  let liveElement: HTMLElement | null = null;
   let prefix = "";
   let wroteFinal = false;
 
@@ -67,6 +67,7 @@
       const node = event.composedPath()[0];
       if (!isEditable(node) && !isGoogleDocs) return;
       lastEditable = isEditable(node) ? node : null;
+      lastEditableId = lastEditable?.id ?? "";
       focusedAt = Date.now();
     },
     true,
@@ -80,31 +81,73 @@
     }
   });
 
-  /** The focused text box, or the last one focused if focus has since moved to something else on the page. */
+  /**
+   * The focused text box, or the last one focused if focus has since moved elsewhere
+   * on the page. Editors like ChatGPT's replace their element when the layout changes,
+   * so a detached box is looked up again by id.
+   */
   function targetElement(): HTMLElement | null {
     if (isGoogleDocs) return (document.activeElement as HTMLElement | null) ?? document.body;
     const active = deepActiveElement();
     if (isEditable(active)) return active;
-    return lastEditable?.isConnected ? lastEditable : null;
+    if (lastEditable?.isConnected) return lastEditable;
+    const byId = lastEditableId ? document.getElementById(lastEditableId) : null;
+    return isEditable(byId) ? byId : null;
   }
 
-  /** Focus the box (without activating the tab) and collapse the caret to the end of any selection. */
+  function caretInside(el: HTMLElement, selection: Selection): boolean {
+    return selection.rangeCount > 0 && el.contains(selection.anchorNode) && el.contains(selection.focusNode);
+  }
+
+  /** Puts the caret after the last text in a rich-text box. */
+  function placeCaretAtEnd(el: HTMLElement, selection: Selection): void {
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    let lastText: Text | null = null;
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      if (node.textContent) lastText = node as Text;
+    }
+    const range = document.createRange();
+    if (lastText) {
+      range.setStart(lastText, lastText.length);
+    } else {
+      let container: Node = el;
+      while (container.lastChild instanceof HTMLElement && !(container.lastChild instanceof HTMLBRElement)) {
+        container = container.lastChild;
+      }
+      range.selectNodeContents(container);
+      range.collapse(false);
+    }
+    range.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
+
+  /**
+   * Focus the box (without activating the tab) and leave a collapsed caret inside it.
+   * Never lets the caret stay outside the box, or text would land elsewhere on the page.
+   */
   function prepareCaret(el: HTMLElement): void {
+    const selection = getSelection();
     if (deepActiveElement() !== el) {
       el.focus({ preventScroll: true });
-      if (savedRange && el.isContentEditable) {
-        const selection = getSelection();
-        selection?.removeAllRanges();
-        selection?.addRange(savedRange);
+      if (el.isContentEditable && selection) {
+        // focus() puts the caret at the start of a rich-text box; restore it or go to the end.
+        if (savedRange && el.contains(savedRange.startContainer)) {
+          selection.removeAllRanges();
+          selection.addRange(savedRange);
+        } else {
+          placeCaretAtEnd(el, selection);
+        }
       }
     }
     if (isTextField(el)) {
       const end = el.selectionEnd ?? el.value.length;
       if (el.selectionStart !== end) el.setSelectionRange(end, end);
-    } else {
-      const selection = getSelection();
-      if (selection?.rangeCount && !selection.isCollapsed) selection.collapseToEnd();
+      return;
     }
+    if (!selection) return;
+    if (!caretInside(el, selection)) placeCaretAtEnd(el, selection);
+    else if (!selection.isCollapsed) selection.collapseToEnd();
   }
 
   /** Text before the caret, or null when it can't be read. */
@@ -185,15 +228,14 @@
   function sync(text: string, final: boolean): boolean {
     const el = targetElement();
     if (!el) return false;
-    if (el !== liveElement) {
-      resetSegment();
-      liveElement = el;
-    }
     if (!isGoogleDocs) prepareCaret(el);
 
+    // Google Docs gives no way to read the text, so the previous insert is trusted there.
     const before = isGoogleDocs ? null : textBeforeCaret(el);
-    // The user typed or moved the caret: leave their text alone and continue from the caret.
-    if (live && before !== null && !before.endsWith(live)) resetSegment();
+    // Unless the text before the caret still ends with what was inserted (the user typed,
+    // moved the caret, switched boxes, or the editor re-rendered without it), never delete:
+    // start the segment over from the caret and leave the existing text alone.
+    if (live && !isGoogleDocs && !(before ?? "").endsWith(live)) resetSegment();
 
     if (!live && text) {
       const needsSpace = before === null ? wroteFinal : before.length > 0 && !/\s$/.test(before);

@@ -21,12 +21,21 @@ export type NativeCommand = { type: "start" } | { type: "stop" } | { type: "stat
 
 export type CompanionConnection = "connecting" | "connected" | "disconnected";
 
+/** Final transcript text spoken without a long pause, stamped with when it started. */
+export interface TranscriptBlock {
+  /** Milliseconds since the session started (first Start Listening after Clear). */
+  at: number;
+  text: string;
+}
+
 export interface Snapshot {
   connection: CompanionConnection;
   state: ListenState;
   device: string | null;
-  finals: string[];
+  blocks: TranscriptBlock[];
   partial: string;
+  /** Set when the partial follows a pause and will start a new block at this time. */
+  partialBlockAt: number | null;
   error: { code: string; message: string } | null;
   /** Tab the transcript is being typed into, if one is locked. */
   target: { title: string; problem: string | null } | null;

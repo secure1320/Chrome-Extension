@@ -20,7 +20,9 @@ import {
 
 const NATIVE_HOST = "com.systemaudio.deepgram";
 const RETRY_DELAYS_MS = [1000, 2000, 4000];
-const MAX_FINAL_SEGMENTS = 500;
+const MAX_BLOCKS = 500;
+/** Silence (no partial or final) that starts a new timestamped block. */
+const PAUSE_MS = 3000;
 
 let nativePort: chrome.runtime.Port | null = null;
 let retryAttempt = 0;
@@ -31,11 +33,45 @@ const snapshot: Snapshot = {
   connection: "disconnected",
   state: "stopped",
   device: null,
-  finals: [],
+  blocks: [],
   partial: "",
+  partialBlockAt: null,
   error: null,
   target: null,
 };
+
+let sessionStart: number | null = null;
+let lastActivity = 0;
+/** The sentence currently being spoken: when it started and whether it opens a new block. */
+let segment: { at: number; newBlock: boolean } | null = null;
+
+function beginSegment(now: number): { at: number; newBlock: boolean } {
+  sessionStart ??= now;
+  segment ??= {
+    at: now - sessionStart,
+    newBlock: snapshot.blocks.length === 0 || now - lastActivity >= PAUSE_MS,
+  };
+  lastActivity = now;
+  return segment;
+}
+
+function endSegment(): void {
+  segment = null;
+  snapshot.partial = "";
+  snapshot.partialBlockAt = null;
+}
+
+function appendFinal(text: string): void {
+  const { at, newBlock } = beginSegment(Date.now());
+  const last = snapshot.blocks[snapshot.blocks.length - 1];
+  if (newBlock || !last) {
+    snapshot.blocks.push({ at, text });
+    if (snapshot.blocks.length > MAX_BLOCKS) snapshot.blocks.splice(0, snapshot.blocks.length - MAX_BLOCKS);
+  } else {
+    last.text += ` ${text}`;
+  }
+  endSegment();
+}
 
 interface InsertTarget {
   tabId: number;
@@ -107,19 +143,18 @@ function onNativeMessage(message: NativeMessage): void {
       break;
     case "stopped":
       snapshot.state = "stopped";
-      snapshot.partial = "";
+      endSegment();
       forwardTranscript("", false);
       break;
-    case "transcript_partial":
+    case "transcript_partial": {
+      const { at, newBlock } = beginSegment(Date.now());
       snapshot.partial = message.text;
+      snapshot.partialBlockAt = newBlock ? at : null;
       forwardTranscript(message.text, false);
       break;
+    }
     case "transcript_final":
-      snapshot.finals.push(message.text);
-      if (snapshot.finals.length > MAX_FINAL_SEGMENTS) {
-        snapshot.finals.splice(0, snapshot.finals.length - MAX_FINAL_SEGMENTS);
-      }
-      snapshot.partial = "";
+      appendFinal(message.text);
       forwardTranscript(message.text, true);
       break;
     case "device_changed":
@@ -138,7 +173,7 @@ function onNativeDisconnect(): void {
   nativePort = null;
   snapshot.connection = "disconnected";
   snapshot.state = "stopped";
-  snapshot.partial = "";
+  endSegment();
   snapshot.error = { code: "COMPANION_DISCONNECTED", message: reason };
   broadcast();
   forwardTranscript("", false);
@@ -157,6 +192,7 @@ function scheduleRetry(): void {
 
 export function startListening(): void {
   if (!nativePort) connectCompanion();
+  sessionStart ??= Date.now();
   snapshot.error = null;
   if (snapshot.state === "stopped" || snapshot.state === "error") {
     snapshot.state = "starting";
@@ -302,8 +338,9 @@ chrome.runtime.onConnect.addListener((port) => {
         connectCompanion();
         break;
       case "clear":
-        snapshot.finals = [];
-        snapshot.partial = "";
+        snapshot.blocks = [];
+        endSegment();
+        sessionStart = snapshot.state === "listening" || snapshot.state === "starting" ? Date.now() : null;
         broadcast();
         break;
       case "lock-target":
