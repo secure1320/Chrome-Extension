@@ -1,0 +1,15 @@
+{
+  "name": "system-audio-transcriber-extension",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Chrome MV3 extension that displays transcripts from the System Audio Companion via Native Messaging.",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "watch": "tsc -p tsconfig.json --watch",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.3.4",
+    "typescript": "^7.0.2"
+  }
+}

@@ -1,0 +1,14 @@
+# Rust build output
+native-companion/target/
+
+# Extension build output and dependencies
+chrome-extension/node_modules/
+chrome-extension/dist/
+
+# Secrets: the Deepgram key lives only in the DEEPGRAM_API_KEY environment variable
+.env
+.env.*
+*.key
+
+# Logs
+*.log

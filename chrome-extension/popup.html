@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>System Audio</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <h1>System Audio</h1>
+
+    <div class="status">
+      <span id="status-dot" class="dot" data-tone="pending"></span>
+      <span id="status-text">Connecting to companion…</span>
+    </div>
+    <div id="device" class="device" hidden></div>
+    <div id="error" class="error" role="alert" hidden></div>
+
+    <section id="transcript-section" hidden>
+      <h2>Transcript:</h2>
+      <div id="transcript" class="transcript" aria-live="polite"><span id="finals"></span><span id="partial" class="partial"></span></div>
+    </section>
+
+    <div class="actions">
+      <button id="toggle" class="primary" type="button">Start Listening</button>
+      <button id="clear" type="button" disabled>Clear</button>
+      <button id="reconnect" type="button" hidden>Reconnect</button>
+    </div>
+
+    <p class="note">Transcribes Windows playback audio only. The microphone is never used.</p>
+
+    <script type="module" src="dist/popup.js"></script>
+  </body>
+</html>

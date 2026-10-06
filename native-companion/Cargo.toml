@@ -1,0 +1,43 @@
+[package]
+name = "system-audio-companion"
+version = "0.1.0"
+edition = "2021"
+description = "Captures Windows system output audio (WASAPI loopback) and streams it to Deepgram; sends transcript text to a Chrome extension via Native Messaging."
+publish = false
+
+[[bin]]
+name = "system-audio-companion"
+path = "src/main.rs"
+
+[dependencies]
+tokio = { version = "1", default-features = false, features = ["rt", "macros", "sync", "time"] }
+# WebSocket I/O runs on a dedicated thread over std sockets: tokio's Windows socket
+# driver (mio/AFD) crashes inside some third-party Winsock LSPs (e.g. Astrill ASProxy64.dll).
+tungstenite = { version = "0.30", default-features = false, features = ["handshake", "native-tls"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[dependencies.windows]
+version = "0.62"
+features = [
+    "Win32_Foundation",
+    "Win32_Media_Audio",
+    "Win32_Media_KernelStreaming",
+    "Win32_Media_Multimedia",
+    "Win32_System_Com",
+    "Win32_System_Com_StructuredStorage",
+    "Win32_Security",
+    "Win32_System_Registry",
+    "Win32_System_SystemInformation",
+    "Win32_System_Threading",
+    "Win32_System_Variant",
+    "Win32_UI_Shell_PropertiesSystem",
+    "Win32_Devices_FunctionDiscovery",
+]
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = true
+panic = "unwind"

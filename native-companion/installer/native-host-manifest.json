@@ -1,0 +1,9 @@
+{
+  "name": "com.systemaudio.deepgram",
+  "description": "System Audio Deepgram Companion",
+  "path": "C:\\Users\\YOU\\AppData\\Local\\SystemAudioCompanion\\system-audio-companion.exe",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://MY_EXTENSION_ID/"
+  ]
+}
