@@ -17,16 +17,36 @@ const transcript = el<HTMLDivElement>("transcript");
 const toggle = el<HTMLButtonElement>("toggle");
 const clear = el<HTMLButtonElement>("clear");
 const reconnect = el<HTMLButtonElement>("reconnect");
-const targetText = el<HTMLSpanElement>("target-text");
-const targetProblem = el<HTMLDivElement>("target-problem");
 const lock = el<HTMLButtonElement>("lock");
 const capture = el<HTMLButtonElement>("capture");
-const captureStatus = el<HTMLDivElement>("capture-status");
 
 const port = chrome.runtime.connect({ name: POPUP_PORT_NAME });
 const send = (command: PopupCommand) => port.postMessage(command);
 
 let current: Snapshot | null = null;
+/** Lock state requested by a click, until the service worker confirms it. */
+let lockRequested: boolean | null = null;
+let lockRequestTimer: ReturnType<typeof setTimeout> | undefined;
+let captureWasBusy = false;
+let captureResultTimer: ReturnType<typeof setTimeout> | undefined;
+
+/** Replays the one-shot click animation. */
+function flash(button: HTMLButtonElement): void {
+  button.classList.remove("flash");
+  void button.offsetWidth;
+  button.classList.add("flash");
+}
+
+function showCaptureResult(failed: boolean): void {
+  clearTimeout(captureResultTimer);
+  capture.classList.toggle("done", !failed);
+  capture.classList.toggle("failed", failed);
+  capture.textContent = failed ? "Failed" : "Saved";
+  captureResultTimer = setTimeout(() => {
+    capture.classList.remove("done", "failed");
+    capture.textContent = "Capture";
+  }, failed ? 3000 : 1800);
+}
 
 function statusLabel(s: Snapshot): { text: string; tone: string } {
   if (s.connection === "disconnected") return { text: "Companion disconnected", tone: "off" };
@@ -113,39 +133,77 @@ function render(s: Snapshot): void {
   if (atBottom) transcript.scrollTop = transcript.scrollHeight;
 
   const active = s.state === "listening" || s.state === "starting";
+  const transitioning = s.state === "starting" || s.state === "stopping" || s.connection === "connecting";
   toggle.textContent = active ? "Stop Listening" : "Start Listening";
   toggle.classList.toggle("stop", active);
+  toggle.classList.toggle("busy", transitioning);
+  toggle.classList.toggle("glow", s.state === "listening");
   toggle.disabled = s.connection === "connecting" || s.state === "stopping";
   clear.disabled = !hasText;
   reconnect.hidden = s.connection !== "disconnected";
 
-  if (s.target) {
-    targetText.textContent = `Typing into: ${s.target.title}`;
-    targetText.title = s.target.title;
-    lock.textContent = "Unlock";
-  } else {
-    targetText.textContent = "Click a text box on the page, then lock it here.";
-    targetText.title = "";
-    lock.textContent = "Lock to this tab";
+  const locked = s.target !== null;
+  if (lockRequested !== null && lockRequested === locked) {
+    lockRequested = null;
+    clearTimeout(lockRequestTimer);
   }
-  targetProblem.hidden = !s.target?.problem;
-  targetProblem.textContent = s.target?.problem ?? "";
+  const problem = s.target?.problem ?? null;
+  lock.textContent = locked ? "Locked" : "Lock";
+  lock.classList.toggle("busy", lockRequested !== null);
+  lock.classList.toggle("on", locked && !problem);
+  lock.classList.toggle("warn", problem !== null);
+  lock.classList.toggle("glow", locked && s.state === "listening");
+  lock.title = problem
+    ? problem
+    : locked
+      ? `Typing into: ${s.target?.title}. Click to unlock.`
+      : "Click a text box on the page, then lock this tab.";
 
-  capture.disabled = s.capture?.busy === true || s.connection === "connecting";
-  captureStatus.hidden = !s.capture;
-  captureStatus.textContent = s.capture?.message ?? "";
-  captureStatus.classList.toggle("failed", s.capture?.failed === true);
+  const captureBusy = s.capture?.busy === true;
+  capture.classList.toggle("busy", captureBusy);
+  capture.disabled = captureBusy || s.connection === "connecting";
+  if (captureWasBusy && !captureBusy && s.capture) showCaptureResult(s.capture.failed);
+  captureWasBusy = captureBusy;
+  capture.title = s.capture && !captureBusy ? s.capture.message : "Capture screen";
 }
 
 port.onMessage.addListener((update: PopupUpdate) => {
   if (update.kind === "snapshot") render(update.snapshot);
 });
 
+for (const button of [toggle, clear, reconnect, lock, capture]) {
+  button.addEventListener("animationend", (e) => {
+    if (e.animationName === "flash") button.classList.remove("flash");
+  });
+}
+
 toggle.addEventListener("click", () => {
   const active = current?.state === "listening" || current?.state === "starting";
+  flash(toggle);
   send({ cmd: active ? "stop" : "start" });
 });
-clear.addEventListener("click", () => send({ cmd: "clear" }));
-reconnect.addEventListener("click", () => send({ cmd: "reconnect" }));
-lock.addEventListener("click", () => send({ cmd: current?.target ? "unlock-target" : "lock-target" }));
-capture.addEventListener("click", () => send({ cmd: "capture-screen" }));
+clear.addEventListener("click", () => {
+  flash(clear);
+  send({ cmd: "clear" });
+});
+reconnect.addEventListener("click", () => {
+  flash(reconnect);
+  send({ cmd: "reconnect" });
+});
+lock.addEventListener("click", () => {
+  const lockNow = !current?.target;
+  lockRequested = lockNow;
+  lock.classList.add("busy");
+  clearTimeout(lockRequestTimer);
+  lockRequestTimer = setTimeout(() => {
+    lockRequested = null;
+    lock.classList.remove("busy");
+  }, 3000);
+  send({ cmd: lockNow ? "lock-target" : "unlock-target" });
+});
+capture.addEventListener("click", () => {
+  clearTimeout(captureResultTimer);
+  capture.classList.remove("done", "failed");
+  capture.textContent = "Capture";
+  send({ cmd: "capture-screen" });
+});

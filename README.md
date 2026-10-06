@@ -15,7 +15,7 @@ Windows audio engine -> WASAPI loopback (default RENDER endpoint)
 - Raw audio goes only to Deepgram. The extension receives only transcript, status, and
   error JSON.
 - Audio is never written to disk.
-- **Capture Screen** (side panel) is done by the companion with Windows GDI, so Chrome
+- **Capture** (side panel) is done by the companion with Windows GDI, so Chrome
   shows no screen picker. The PNG stays local (Downloads + clipboard) and is never sent to
   the extension or the network.
 
@@ -126,11 +126,12 @@ closes.
 #### Type the transcript into a page
 
 Click into a text box on any page (Google Docs, a chat box, a form field), then click
-**Lock to this tab** in the side panel. While listening, the grey in-progress text is
-typed into that box as it arrives and corrected in place whenever Deepgram revises it, so
-the box always matches the panel. Finished sentences are committed and the next one starts
-after them. The locked tab keeps receiving text when you switch to another tab or app.
-Click **Unlock** to stop.
+**Lock** at the top of the side panel. The button turns blue (**Locked**) and pulses while
+text is flowing; it turns amber if there is no text box to type into (hover it to see why).
+While listening, the grey in-progress text is typed into that box as it arrives and
+corrected in place whenever Deepgram revises it, so the box always matches the panel.
+Finished sentences are committed and the next one starts after them. The locked tab keeps
+receiving text when you switch to another tab or app. Click **Locked** again to unlock.
 
 If you type or move the caret in the box while it is live, your edits are kept and the
 transcript continues from the caret. Chrome doesn't allow extensions on `chrome://` pages
@@ -138,7 +139,8 @@ or the Chrome Web Store.
 
 #### Capture the screen
 
-Click **Capture Screen** in the side panel. The companion captures the primary display at
+Click **Capture** at the top of the side panel (it spins while working, then flashes green
+**Saved** or red **Failed**; hover for details). The companion captures the primary display at
 its full physical resolution, crops off the top 10% and bottom 10% (1920x1080 becomes
 1920x864), saves `Screenshot YYYY-MM-DD HHMMSS.png` to your Downloads folder and copies the
 image to the clipboard, ready to paste with Ctrl+V. It works whether or not you are

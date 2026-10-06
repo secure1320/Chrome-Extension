@@ -43,7 +43,7 @@ body {
 }
 
 h1 {
-  margin: 0 0 10px;
+  margin: 0 0 8px;
   font-size: 16px;
   font-weight: 600;
 }
@@ -136,7 +136,25 @@ h2 {
   margin-top: 14px;
 }
 
+.header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.header-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.tools {
+  display: flex;
+  flex: none;
+  gap: 6px;
+}
+
 button {
+  --glow: color-mix(in srgb, var(--accent) 45%, transparent);
   padding: 6px 12px;
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -144,6 +162,15 @@ button {
   color: var(--fg);
   font: inherit;
   cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s, color 0.2s, transform 0.1s;
+}
+
+button:not(:disabled):hover {
+  border-color: var(--muted);
+}
+
+button:not(:disabled):active {
+  transform: scale(0.96);
 }
 
 button:disabled {
@@ -160,47 +187,86 @@ button.primary {
 }
 
 button.primary.stop {
+  --glow: color-mix(in srgb, var(--live) 50%, transparent);
   border-color: var(--live);
   background: var(--live);
 }
 
-.target-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+/* Working: spinner before the label. */
+button.busy {
+  cursor: progress;
 }
 
-.target-text {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+button.busy:disabled {
+  opacity: 1;
 }
 
-.target-row button {
-  flex: none;
+button.busy::before {
+  content: "";
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 6px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  vertical-align: -1px;
+  animation: spin 0.7s linear infinite;
 }
 
-.warning {
-  margin-top: 6px;
+/* Running: soft pulsing ring. */
+button.glow {
+  animation: glow 1.6s ease-in-out infinite;
+}
+
+/* Locked tab: filled with the accent color. */
+.tool.on {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+/* Locked, but no text box to type into (hover shows why). */
+.tool.warn {
+  --glow: color-mix(in srgb, var(--pending) 45%, transparent);
+  border-color: var(--pending);
+  background: color-mix(in srgb, var(--pending) 15%, transparent);
   color: var(--pending);
-  font-size: 12px;
 }
 
-.capture-status {
-  margin-top: 6px;
-  color: var(--ok);
-  font-size: 12px;
-  word-break: break-word;
+button.done {
+  border-color: var(--ok);
+  background: var(--ok);
+  color: #fff;
 }
 
-.capture-status.failed {
-  color: var(--live);
+button.failed {
+  border-color: var(--live);
+  background: var(--live);
+  color: #fff;
 }
 
-.note {
-  margin: 10px 0 0;
-  font-size: 11px;
-  color: var(--muted);
+button.flash {
+  animation: flash 0.45s ease-out;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes glow {
+  0%, 100% { box-shadow: 0 0 0 0 var(--glow); }
+  50% { box-shadow: 0 0 0 4px var(--glow); }
+}
+
+@keyframes flash {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 60%, transparent); }
+  100% { box-shadow: 0 0 0 8px transparent; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button.glow,
+  button.flash {
+    animation: none;
+  }
 }

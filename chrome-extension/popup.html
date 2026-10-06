@@ -6,13 +6,20 @@
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
-    <h1>System Audio</h1>
-
-    <div class="status">
-      <span id="status-dot" class="dot" data-tone="pending"></span>
-      <span id="status-text">Connecting to companion…</span>
-    </div>
-    <div id="device" class="device" hidden></div>
+    <header class="header">
+      <div class="header-info">
+        <h1>System Audio</h1>
+        <div class="status">
+          <span id="status-dot" class="dot" data-tone="pending"></span>
+          <span id="status-text">Connecting to companion…</span>
+        </div>
+        <div id="device" class="device" hidden></div>
+      </div>
+      <div class="tools">
+        <button id="lock" class="tool" type="button">Lock</button>
+        <button id="capture" class="tool" type="button" title="Capture screen">Capture</button>
+      </div>
+    </header>
     <div id="error" class="error" role="alert" hidden></div>
 
     <section id="transcript-section" hidden>
@@ -25,26 +32,6 @@
       <button id="clear" type="button" disabled>Clear</button>
       <button id="reconnect" type="button" hidden>Reconnect</button>
     </div>
-
-    <section class="inserter">
-      <h2>Type into page:</h2>
-      <div class="target-row">
-        <span id="target-text" class="target-text"></span>
-        <button id="lock" type="button">Lock to this tab</button>
-      </div>
-      <div id="target-problem" class="warning" role="status" hidden></div>
-    </section>
-
-    <section class="screen-capture">
-      <h2>Screen:</h2>
-      <div class="target-row">
-        <span class="target-text">Primary display, top and bottom 10% cropped</span>
-        <button id="capture" type="button">Capture Screen</button>
-      </div>
-      <div id="capture-status" class="capture-status" role="status" hidden></div>
-    </section>
-
-    <p class="note">Transcribes Windows playback audio only. The microphone is never used.</p>
 
     <script type="module" src="dist/popup.js"></script>
   </body>
