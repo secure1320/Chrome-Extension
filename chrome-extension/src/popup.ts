@@ -19,6 +19,9 @@ const partial = el<HTMLSpanElement>("partial");
 const toggle = el<HTMLButtonElement>("toggle");
 const clear = el<HTMLButtonElement>("clear");
 const reconnect = el<HTMLButtonElement>("reconnect");
+const targetText = el<HTMLSpanElement>("target-text");
+const targetProblem = el<HTMLDivElement>("target-problem");
+const lock = el<HTMLButtonElement>("lock");
 
 const port = chrome.runtime.connect({ name: POPUP_PORT_NAME });
 const send = (command: PopupCommand) => port.postMessage(command);
@@ -74,6 +77,18 @@ function render(s: Snapshot): void {
   toggle.disabled = s.connection === "connecting" || s.state === "stopping";
   clear.disabled = !hasText;
   reconnect.hidden = s.connection !== "disconnected";
+
+  if (s.target) {
+    targetText.textContent = `Typing into: ${s.target.title}`;
+    targetText.title = s.target.title;
+    lock.textContent = "Unlock";
+  } else {
+    targetText.textContent = "Click a text box on the page, then lock it here.";
+    targetText.title = "";
+    lock.textContent = "Lock to this tab";
+  }
+  targetProblem.hidden = !s.target?.problem;
+  targetProblem.textContent = s.target?.problem ?? "";
 }
 
 port.onMessage.addListener((update: PopupUpdate) => {
@@ -86,3 +101,4 @@ toggle.addEventListener("click", () => {
 });
 clear.addEventListener("click", () => send({ cmd: "clear" }));
 reconnect.addEventListener("click", () => send({ cmd: "reconnect" }));
+lock.addEventListener("click", () => send({ cmd: current?.target ? "unlock-target" : "lock-target" }));

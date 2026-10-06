@@ -154,6 +154,30 @@ button.primary.stop {
   background: var(--live);
 }
 
+.target-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.target-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.target-row button {
+  flex: none;
+}
+
+.warning {
+  margin-top: 6px;
+  color: var(--pending);
+  font-size: 12px;
+}
+
 .note {
   margin: 10px 0 0;
   font-size: 11px;

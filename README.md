@@ -20,10 +20,12 @@ Windows audio engine -> WASAPI loopback (default RENDER endpoint)
 
 ```text
 chrome-extension/          MV3 extension (TypeScript, built with tsc)
-  manifest.json            permissions: ["nativeMessaging"] only
-  popup.html / popup.css
-  src/background.ts        Native Messaging port, transcript state, bounded reconnect
+  manifest.json            nativeMessaging, sidePanel, scripting + <all_urls> (for typing)
+  popup.html / popup.css   side panel page
+  src/background.ts        Native Messaging port, transcript state, bounded reconnect,
+                           forwarding to the locked tab
   src/popup.ts             UI
+  src/content.ts           types the live transcript into the focused text box
   src/messages.ts          shared message types
 native-companion/          Rust companion (Windows 11)
   src/audio.rs             WASAPI loopback capture (eRender + LOOPBACK)
@@ -114,6 +116,19 @@ while capture is active. Partial results appear in grey italics and are replaced
 final text. Click **Stop Listening** to stop capture immediately and close the
 Deepgram connection. The transcript is kept in memory until you click **Clear** or Chrome
 closes.
+
+#### Type the transcript into a page
+
+Click into a text box on any page (Google Docs, a chat box, a form field), then click
+**Lock to this tab** in the side panel. While listening, the grey in-progress text is
+typed into that box as it arrives and corrected in place whenever Deepgram revises it, so
+the box always matches the panel. Finished sentences are committed and the next one starts
+after them. The locked tab keeps receiving text when you switch to another tab or app.
+Click **Unlock** to stop.
+
+If you type or move the caret in the box while it is live, your edits are kept and the
+transcript continues from the caret. Chrome doesn't allow extensions on `chrome://` pages
+or the Chrome Web Store.
 
 ## Developer modes
 

@@ -28,6 +28,8 @@ export interface Snapshot {
   finals: string[];
   partial: string;
   error: { code: string; message: string } | null;
+  /** Tab the transcript is being typed into, if one is locked. */
+  target: { title: string; problem: string | null } | null;
 }
 
 /** Popup -> service worker. */
@@ -36,9 +38,19 @@ export type PopupCommand =
   | { cmd: "stop" }
   | { cmd: "status" }
   | { cmd: "reconnect" }
-  | { cmd: "clear" };
+  | { cmd: "clear" }
+  | { cmd: "lock-target" }
+  | { cmd: "unlock-target" };
 
 /** Service worker -> popup. */
 export type PopupUpdate = { kind: "snapshot"; snapshot: Snapshot };
+
+/** Service worker -> content script in the locked frame. Mirrored in content.ts, which can't import. */
+export type InserterMessage = { type: "sac-sync"; text: string; final: boolean } | { type: "sac-reset" };
+
+export interface InserterProbe {
+  editable: boolean;
+  focusedAt: number;
+}
 
 export const POPUP_PORT_NAME = "popup";

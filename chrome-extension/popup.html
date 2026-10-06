@@ -26,6 +26,15 @@
       <button id="reconnect" type="button" hidden>Reconnect</button>
     </div>
 
+    <section class="inserter">
+      <h2>Type into page:</h2>
+      <div class="target-row">
+        <span id="target-text" class="target-text"></span>
+        <button id="lock" type="button">Lock to this tab</button>
+      </div>
+      <div id="target-problem" class="warning" role="status" hidden></div>
+    </section>
+
     <p class="note">Transcribes Windows playback audio only. The microphone is never used.</p>
 
     <script type="module" src="dist/popup.js"></script>

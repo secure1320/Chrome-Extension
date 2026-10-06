@@ -1,6 +1,7 @@
 /**
  * Service worker: owns the Chrome Native Messaging port to the System Audio
- * Companion and keeps the transcript in memory for the popup.
+ * Companion, keeps the transcript in memory for the side panel, and forwards it
+ * to the content script of the tab the user locked for typing.
  *
  * Audio never passes through the extension. The companion captures Windows
  * system playback (WASAPI loopback), streams it to Deepgram, and sends only
@@ -8,6 +9,8 @@
  */
 import {
   POPUP_PORT_NAME,
+  type InserterMessage,
+  type InserterProbe,
   type NativeCommand,
   type NativeMessage,
   type PopupCommand,
@@ -31,7 +34,20 @@ const snapshot: Snapshot = {
   finals: [],
   partial: "",
   error: null,
+  target: null,
 };
+
+interface InsertTarget {
+  tabId: number;
+  frameId: number | null;
+  title: string;
+  problem: string | null;
+}
+
+const NO_TEXT_BOX = "Click a text box in the locked tab. Text will go there.";
+let insertTarget: InsertTarget | null = null;
+/** Keeps page updates in arrival order even though delivering each one is async. */
+let insertQueue: Promise<void> = Promise.resolve();
 
 function broadcast(): void {
   const update: PopupUpdate = { kind: "snapshot", snapshot };
@@ -92,9 +108,11 @@ function onNativeMessage(message: NativeMessage): void {
     case "stopped":
       snapshot.state = "stopped";
       snapshot.partial = "";
+      forwardTranscript("", false);
       break;
     case "transcript_partial":
       snapshot.partial = message.text;
+      forwardTranscript(message.text, false);
       break;
     case "transcript_final":
       snapshot.finals.push(message.text);
@@ -102,6 +120,7 @@ function onNativeMessage(message: NativeMessage): void {
         snapshot.finals.splice(0, snapshot.finals.length - MAX_FINAL_SEGMENTS);
       }
       snapshot.partial = "";
+      forwardTranscript(message.text, true);
       break;
     case "device_changed":
       snapshot.device = message.device;
@@ -122,6 +141,7 @@ function onNativeDisconnect(): void {
   snapshot.partial = "";
   snapshot.error = { code: "COMPANION_DISCONNECTED", message: reason };
   broadcast();
+  forwardTranscript("", false);
   scheduleRetry();
 }
 
@@ -157,6 +177,107 @@ export function getStatus(): void {
   postNative({ type: "status" });
 }
 
+function publishTarget(): void {
+  snapshot.target = insertTarget ? { title: insertTarget.title, problem: insertTarget.problem } : null;
+  broadcast();
+}
+
+function setProblem(target: InsertTarget, problem: string | null): void {
+  if (target !== insertTarget || target.problem === problem) return;
+  target.problem = problem;
+  publishTarget();
+}
+
+function enqueue(task: () => Promise<void>): void {
+  insertQueue = insertQueue.then(task).catch((error) => console.error("Text insertion failed:", error));
+}
+
+/** Runs inside each frame of the page, in the content script's world. */
+function probeInserter(): InserterProbe | null {
+  return (globalThis as { __sacInserter?: { probe(): InserterProbe } }).__sacInserter?.probe() ?? null;
+}
+
+/** The frame holding the most recently focused text box, injecting the content script if the tab predates it. */
+async function findEditableFrame(tabId: number): Promise<number | null> {
+  const probe = () => chrome.scripting.executeScript({ target: { tabId, allFrames: true }, func: probeInserter });
+  let results = await probe();
+  if (results.every((r) => r.result == null)) {
+    await chrome.scripting.executeScript({ target: { tabId, allFrames: true }, files: ["dist/content.js"] });
+    results = await probe();
+  }
+  let best: { frameId: number; focusedAt: number } | null = null;
+  for (const { frameId, result } of results) {
+    if (!result?.editable) continue;
+    if (!best || result.focusedAt > best.focusedAt) best = { frameId, focusedAt: result.focusedAt };
+  }
+  return best?.frameId ?? null;
+}
+
+async function sendToFrame(target: InsertTarget, message: InserterMessage): Promise<boolean> {
+  if (target.frameId === null) return false;
+  try {
+    return (await chrome.tabs.sendMessage(target.tabId, message, { frameId: target.frameId })) === true;
+  } catch {
+    return false;
+  }
+}
+
+function lockTarget(): void {
+  enqueue(async () => {
+    const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    if (tab?.id === undefined) return;
+    const target: InsertTarget = {
+      tabId: tab.id,
+      frameId: null,
+      title: tab.title || tab.url || "Untitled tab",
+      problem: null,
+    };
+    insertTarget = target;
+    try {
+      target.frameId = await findEditableFrame(tab.id);
+      if (!(await sendToFrame(target, { type: "sac-reset" }))) target.problem = NO_TEXT_BOX;
+    } catch {
+      target.problem = "Chrome doesn't allow extensions to type on this page.";
+    }
+    publishTarget();
+  });
+}
+
+function unlockTarget(): void {
+  insertTarget = null;
+  publishTarget();
+}
+
+function forwardTranscript(text: string, final: boolean): void {
+  if (!insertTarget) return;
+  enqueue(async () => {
+    const target = insertTarget;
+    if (!target || (!text && !final && target.frameId === null)) return;
+    const message: InserterMessage = { type: "sac-sync", text, final };
+    try {
+      let delivered = await sendToFrame(target, message);
+      if (!delivered) {
+        target.frameId = await findEditableFrame(target.tabId);
+        delivered = await sendToFrame(target, message);
+      }
+      setProblem(target, delivered ? null : NO_TEXT_BOX);
+    } catch {
+      setProblem(target, "Can't reach the locked tab. Click its text box and lock again.");
+    }
+  });
+}
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+  if (insertTarget?.tabId === tabId) unlockTarget();
+});
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  if (insertTarget?.tabId === tabId && changeInfo.title) {
+    insertTarget.title = changeInfo.title;
+    publishTarget();
+  }
+});
+
 chrome.sidePanel
   .setPanelBehavior({ openPanelOnActionClick: true })
   .catch((error) => console.error("Failed to set side panel behavior:", error));
@@ -184,6 +305,12 @@ chrome.runtime.onConnect.addListener((port) => {
         snapshot.finals = [];
         snapshot.partial = "";
         broadcast();
+        break;
+      case "lock-target":
+        lockTarget();
+        break;
+      case "unlock-target":
+        unlockTarget();
         break;
     }
   });
