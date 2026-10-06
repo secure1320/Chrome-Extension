@@ -1,7 +1,8 @@
 <#
 .SYNOPSIS
-    Removes everything install.ps1 created: the HKCU Native Messaging registration,
-    the installed executable and manifest, and (unless -KeepLogs) the log folder.
+    Removes everything install.ps1 and the setup package created: the HKCU Native
+    Messaging registration, the installed executable and manifest, the installed
+    extension folder, and (unless -KeepLogs) the log folder.
     The DEEPGRAM_API_KEY environment variable is left untouched.
 #>
 [CmdletBinding()]
@@ -18,6 +19,7 @@ $RegistryKey = "HKCU:\Software\Google\Chrome\NativeMessagingHosts\$HostName"
 $ExePath = Join-Path $InstallDir $ExeName
 $ManifestPath = Join-Path $InstallDir 'native-host-manifest.json'
 $LogDir = Join-Path $InstallDir 'logs'
+$ExtensionDir = Join-Path $InstallDir 'extension'
 
 if (Test-Path -Path $RegistryKey) {
     Remove-Item -Path $RegistryKey -Recurse -Force
@@ -37,6 +39,11 @@ foreach ($file in @($ExePath, $ManifestPath)) {
         Remove-Item -LiteralPath $file -Force
         Write-Host "Removed $file"
     }
+}
+
+if (Test-Path -LiteralPath $ExtensionDir) {
+    Remove-Item -LiteralPath $ExtensionDir -Recurse -Force
+    Write-Host "Removed $ExtensionDir (also remove the extension on chrome://extensions)"
 }
 
 if (-not $KeepLogs -and (Test-Path -LiteralPath $LogDir)) {

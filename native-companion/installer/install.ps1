@@ -4,7 +4,8 @@
     Chrome Native Messaging host (HKCU, no administrator rights needed).
 
 .PARAMETER ExtensionId
-    The 32-character ID of the extension shown on chrome://extensions.
+    The 32-character ID of the extension shown on chrome://extensions. Defaults to the
+    fixed ID pinned by the "key" in chrome-extension\manifest.json.
 
 .PARAMETER InstallDir
     Where to install. Defaults to %LOCALAPPDATA%\SystemAudioCompanion.
@@ -16,13 +17,12 @@
     Run `cargo build --release` before installing.
 
 .EXAMPLE
-    .\install.ps1 -ExtensionId abcdefghijklmnopabcdefghijklmnop -Build
+    .\install.ps1 -Build
 #>
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory = $true)]
     [ValidatePattern('^[a-p]{32}$')]
-    [string] $ExtensionId,
+    [string] $ExtensionId = 'foiceiaejcejkobbkhekacfpebekndpj',
 
     [string] $InstallDir = (Join-Path $env:LOCALAPPDATA 'SystemAudioCompanion'),
 

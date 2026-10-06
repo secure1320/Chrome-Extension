@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "description": "Live transcript of Windows system playback audio, provided by the local System Audio Companion.",
   "minimum_chrome_version": "116",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArO/8wrUnvQ5tnXsQHV2R+1DyZJSDNfp1CWQvcGoxepg1gYya/Nl3xBsCPWYbhWvhgxtmIPFY2eMIG7U8QshpT4YDSRykakk1XWOE1T3XeTUUlS+kxXkfTXGRW0T3Ef9S5wVmuIartNWtH1DxWIaE2DKRd48dnFYS4dJelKE91yiGl9Ey9Of8/BnYLNr7UoFh0uuC17ROYmhvmm0AKGA3Ry1Ys6DJcbUzwUlUGdmXvio2ajC91nnafWdTfJgerQNE3SFlYJOijiCzQ7G1KxC9d2mWglT/n3FItYVYZWJzglNz+xz5tv4HThQfOjnT44Bt02AgzjmquYIhhpg4i8/cnQIDAQAB",
   "permissions": ["nativeMessaging", "sidePanel", "scripting"],
   "host_permissions": ["<all_urls>"],
   "background": {

@@ -41,7 +41,32 @@ native-companion/          Rust companion (Windows 11)
   src/screen.rs            primary-display capture, 10% top/bottom crop, PNG, clipboard
   installer/               install.ps1, uninstall.ps1, manifest template
   tools/                   test harnesses (Native Messaging, mock Deepgram, Chrome E2E)
+  .cargo/config.toml       static C runtime (no VC++ Redistributable needed)
+packaging/                 Setup.cmd, setup.ps1, Uninstall.cmd, README.txt for the zip
+package.ps1                builds everything into release\SystemAudioTranscriber-<version>.zip
 ```
+
+## Install on another laptop (no build tools)
+
+On the development machine, build the release zip:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\package.ps1
+```
+
+This creates `release\SystemAudioTranscriber-<version>.zip` (about 0.5 MB). On the other
+laptop (Windows 10/11 + Chrome, no admin rights, Rust, Node.js or Visual C++ runtime
+needed): extract it, double-click **Setup.cmd**, paste the Deepgram key when asked, then on
+`chrome://extensions` enable **Developer mode**, click **Load unpacked** and choose
+`%LOCALAPPDATA%\SystemAudioCompanion\extension` (Setup copies the path to the clipboard).
+**Uninstall.cmd** removes everything. Chrome only allows Web Store extensions to be
+installed automatically, so Load unpacked is the one manual step.
+
+The extension ID is fixed (`foiceiaejcejkobbkhekacfpebekndpj`) by the `key` in
+`manifest.json`, so it is the same on every machine and whatever folder it is loaded from.
+The matching private key is kept outside the repo
+(`%USERPROFILE%\.system-audio-transcriber\extension-key.pem`); it is only needed to publish
+to the Chrome Web Store.
 
 ## Prerequisites
 
@@ -67,15 +92,17 @@ npm run build
 
 1. Open `chrome://extensions` and enable **Developer mode**.
 2. Click **Load unpacked** and select the `chrome-extension` folder.
-3. Copy the extension **ID** (32 letters a-p). An unpacked extension's ID is derived from
-   its folder path, so it stays the same as long as the folder doesn't move.
+3. The extension ID is always `foiceiaejcejkobbkhekacfpebekndpj` (pinned by the `key` in
+   `manifest.json`).
 
 ### 3. Install the companion (current user, no admin rights)
 
 ```powershell
 cd native-companion\installer
-powershell -ExecutionPolicy Bypass -File .\install.ps1 -ExtensionId <your-extension-id>
+powershell -ExecutionPolicy Bypass -File .\install.ps1
 ```
+
+`-ExtensionId <id>` overrides the fixed ID (the Chrome E2E tool uses this).
 
 This copies the exe to `%LOCALAPPDATA%\SystemAudioCompanion`, writes
 `native-host-manifest.json` with the real exe path and exactly
