@@ -4,13 +4,15 @@
   "version": "0.1.0",
   "description": "Live transcript of Windows system playback audio, provided by the local System Audio Companion.",
   "minimum_chrome_version": "116",
-  "permissions": ["nativeMessaging"],
+  "permissions": ["nativeMessaging", "sidePanel"],
   "background": {
     "service_worker": "dist/background.js",
     "type": "module"
   },
   "action": {
-    "default_title": "System Audio",
-    "default_popup": "popup.html"
+    "default_title": "System Audio"
+  },
+  "side_panel": {
+    "default_path": "popup.html"
   }
 }

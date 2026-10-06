@@ -127,4 +127,4 @@ else {
     Write-Host '  [Environment]::SetEnvironmentVariable("DEEPGRAM_API_KEY", (Read-Host "Deepgram API key"), "User")'
 }
 Write-Host ""
-Write-Host "Reload the extension (or restart Chrome), open its popup and click Start Listening."
+Write-Host "Reload the extension (or restart Chrome), open its side panel and click Start Listening."

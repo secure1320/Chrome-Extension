@@ -157,6 +157,10 @@ export function getStatus(): void {
   postNative({ type: "status" });
 }
 
+chrome.sidePanel
+  .setPanelBehavior({ openPanelOnActionClick: true })
+  .catch((error) => console.error("Failed to set side panel behavior:", error));
+
 chrome.runtime.onConnect.addListener((port) => {
   if (port.name !== POPUP_PORT_NAME) return;
   popupPorts.add(port);

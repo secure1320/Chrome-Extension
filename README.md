@@ -6,7 +6,7 @@ participants, Spotify, notifications, ...) shown in a Chrome extension.
 ```text
 Windows audio engine -> WASAPI loopback (default RENDER endpoint)
   -> system-audio-companion.exe (PCM16 mono) -> Deepgram live STT
-  -> transcript text -> Chrome Native Messaging -> extension popup
+  -> transcript text -> Chrome Native Messaging -> extension side panel
 ```
 
 - Captures **system output only**: the default render endpoint (`eRender`) opened with
@@ -108,7 +108,8 @@ To remove it:
 
 ### 5. Use it
 
-Open the extension popup, then click **Start Listening**. The popup shows **Listening**
+Click the extension's toolbar icon to open it in Chrome's side panel, then click
+**Start Listening**. The panel shows **Listening**
 while capture is active. Partial results appear in grey italics and are replaced by the
 final text. Click **Stop Listening** to stop capture immediately and close the
 Deepgram connection. The transcript is kept in memory until you click **Clear** or Chrome
