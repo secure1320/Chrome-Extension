@@ -85,6 +85,15 @@ const NO_TEXT_BOX = "Click a text box in the locked tab. Text will go there.";
 let insertTarget: InsertTarget | null = null;
 /** Keeps page updates in arrival order even though delivering each one is async. */
 let insertQueue: Promise<void> = Promise.resolve();
+/** Bumped on unlock/clear so queued inserts that started earlier become no-ops. */
+let insertEpoch = 0;
+/** Committed transcript text successfully reflected in the locked field (no live partial). */
+let typedCommitted = "";
+
+/** Side-panel committed transcript: blocks joined with a space. */
+function committedText(): string {
+  return snapshot.blocks.map((b) => b.text).filter(Boolean).join(" ");
+}
 
 function broadcast(): void {
   const update: PopupUpdate = { kind: "snapshot", snapshot };
@@ -257,8 +266,18 @@ function setProblem(target: InsertTarget, problem: string | null): void {
   publishTarget();
 }
 
-function enqueue(task: () => Promise<void>): void {
-  insertQueue = insertQueue.then(task).catch((error) => console.error("Text insertion failed:", error));
+function enqueue(task: (epoch: number) => Promise<void>): void {
+  const epoch = insertEpoch;
+  insertQueue = insertQueue
+    .then(async () => {
+      if (epoch !== insertEpoch) return;
+      await task(epoch);
+    })
+    .catch((error) => console.error("Text insertion failed:", error));
+}
+
+function stillCurrent(epoch: number): boolean {
+  return epoch === insertEpoch;
 }
 
 /** Runs inside each frame of the page, in the content script's world. */
@@ -291,10 +310,27 @@ async function sendToFrame(target: InsertTarget, message: InserterMessage): Prom
   }
 }
 
+/** Deliver a message, rediscovering the frame if needed. Returns false if the epoch was cancelled. */
+async function deliver(
+  target: InsertTarget,
+  message: InserterMessage,
+  epoch: number,
+): Promise<boolean | "cancelled"> {
+  if (!stillCurrent(epoch)) return "cancelled";
+  let delivered = await sendToFrame(target, message);
+  if (!stillCurrent(epoch)) return "cancelled";
+  if (!delivered) {
+    target.frameId = await findEditableFrame(target.tabId);
+    if (!stillCurrent(epoch)) return "cancelled";
+    delivered = await sendToFrame(target, message);
+  }
+  return delivered;
+}
+
 function lockTarget(): void {
-  enqueue(async () => {
+  enqueue(async (epoch) => {
     const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-    if (tab?.id === undefined) return;
+    if (!stillCurrent(epoch) || tab?.id === undefined) return;
     const target: InsertTarget = {
       tabId: tab.id,
       frameId: null,
@@ -304,36 +340,105 @@ function lockTarget(): void {
     insertTarget = target;
     try {
       target.frameId = await findEditableFrame(tab.id);
-      if (!(await sendToFrame(target, { type: "sac-reset" }))) target.problem = NO_TEXT_BOX;
+      if (!stillCurrent(epoch) || insertTarget !== target) return;
+
+      let desired = committedText();
+      if (!desired.startsWith(typedCommitted)) {
+        // Transcript was cleared/trimmed out from under us: full resync of committed text.
+        typedCommitted = "";
+        const reset = await deliver(target, { type: "sac-reset" }, epoch);
+        if (reset === "cancelled") return;
+        if (!reset) {
+          target.problem = NO_TEXT_BOX;
+          publishTarget();
+          return;
+        }
+        desired = committedText();
+      }
+
+      const missing = desired.slice(typedCommitted.length);
+      if (missing) {
+        const committed = await deliver(target, { type: "sac-commit", text: missing }, epoch);
+        if (committed === "cancelled") return;
+        if (!committed) {
+          target.problem = NO_TEXT_BOX;
+          publishTarget();
+          return;
+        }
+      } else {
+        // Nothing to catch up: still verify the box is reachable.
+        const probe = await deliver(target, { type: "sac-sync", text: "", final: false }, epoch);
+        if (probe === "cancelled") return;
+        if (!probe) {
+          target.problem = NO_TEXT_BOX;
+          publishTarget();
+          return;
+        }
+      }
+
+      typedCommitted = desired;
+      target.problem = null;
+      publishTarget();
+
+      if (snapshot.partial && stillCurrent(epoch) && insertTarget === target) {
+        const live = await deliver(target, { type: "sac-sync", text: snapshot.partial, final: false }, epoch);
+        if (live === "cancelled") return;
+        setProblem(target, live ? null : NO_TEXT_BOX);
+      }
     } catch {
-      target.problem = "Chrome doesn't allow extensions to type on this page.";
+      if (stillCurrent(epoch) && insertTarget === target) {
+        target.problem = "Chrome doesn't allow extensions to type on this page.";
+        publishTarget();
+      }
     }
-    publishTarget();
   });
 }
 
 function unlockTarget(): void {
+  const previous = insertTarget;
   insertTarget = null;
+  insertEpoch++;
   publishTarget();
+  // Strip the grey live segment immediately; leave committed text and typedCommitted alone.
+  if (previous?.frameId !== null && previous) {
+    void sendToFrame(previous, { type: "sac-sync", text: "", final: false });
+  }
 }
 
 function forwardTranscript(text: string, final: boolean): void {
   if (!insertTarget) return;
-  enqueue(async () => {
+  enqueue(async (epoch) => {
     const target = insertTarget;
-    if (!target || (!text && !final && target.frameId === null)) return;
+    if (!stillCurrent(epoch) || !target) return;
+    if (!text && !final && target.frameId === null) return;
     const message: InserterMessage = { type: "sac-sync", text, final };
     try {
-      let delivered = await sendToFrame(target, message);
-      if (!delivered) {
-        target.frameId = await findEditableFrame(target.tabId);
-        delivered = await sendToFrame(target, message);
+      const delivered = await deliver(target, message, epoch);
+      if (delivered === "cancelled") return;
+      if (delivered && final) typedCommitted = committedText();
+      if (stillCurrent(epoch) && insertTarget === target) {
+        setProblem(target, delivered ? null : NO_TEXT_BOX);
       }
-      setProblem(target, delivered ? null : NO_TEXT_BOX);
     } catch {
-      setProblem(target, "Can't reach the locked tab. Click its text box and lock again.");
+      if (stillCurrent(epoch) && insertTarget === target) {
+        setProblem(target, "Can't reach the locked tab. Click its text box and lock again.");
+      }
     }
   });
+}
+
+function clearTranscriptAndTyped(): void {
+  const target = insertTarget;
+  const retractCount = typedCommitted.length;
+  snapshot.blocks = [];
+  endSegment();
+  typedCommitted = "";
+  insertEpoch++;
+  sessionStart = snapshot.state === "listening" || snapshot.state === "starting" ? Date.now() : null;
+  if (target) {
+    void sendToFrame(target, { type: "sac-retract", count: retractCount });
+  }
+  broadcast();
 }
 
 chrome.tabs.onRemoved.addListener((tabId) => {
@@ -371,10 +476,7 @@ chrome.runtime.onConnect.addListener((port) => {
         connectCompanion();
         break;
       case "clear":
-        snapshot.blocks = [];
-        endSegment();
-        sessionStart = snapshot.state === "listening" || snapshot.state === "starting" ? Date.now() : null;
-        broadcast();
+        clearTranscriptAndTyped();
         break;
       case "lock-target":
         lockTarget();

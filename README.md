@@ -158,7 +158,10 @@ text is flowing; it turns amber if there is no text box to type into (hover it t
 While listening, the grey in-progress text is typed into that box as it arrives and
 corrected in place whenever Deepgram revises it, so the box always matches the panel.
 Finished sentences are committed and the next one starts after them. The locked tab keeps
-receiving text when you switch to another tab or app. Click **Locked** again to unlock.
+receiving text when you switch to another tab or app. Click **Locked** again to unlock:
+unlock stops typing immediately (and drops the grey in-progress text from the box), while
+listening can continue; lock again to catch up any finished sentences you missed, then
+resume live typing.
 
 If you type or move the caret in the box while it is live, your edits are kept and the
 transcript continues from the caret. Chrome doesn't allow extensions on `chrome://` pages

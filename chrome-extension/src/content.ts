@@ -10,7 +10,11 @@
  * Loaded as a classic script, so it must not import or export anything.
  */
 (() => {
-  type InserterMessage = { type: "sac-sync"; text: string; final: boolean } | { type: "sac-reset" };
+  type InserterMessage =
+    | { type: "sac-sync"; text: string; final: boolean }
+    | { type: "sac-commit"; text: string }
+    | { type: "sac-retract"; count: number }
+    | { type: "sac-reset" };
   interface Inserter {
     probe(): { editable: boolean; focusedAt: number };
     alive(): boolean;
@@ -257,9 +261,41 @@
     return true;
   }
 
+  /** Insert catch-up text verbatim; spacing is already decided by the background. */
+  function commit(text: string): boolean {
+    if (!text) return true;
+    const el = targetElement();
+    if (!el) return false;
+    if (!isGoogleDocs) prepareCaret(el);
+    if (live) {
+      // Drop any leftover live segment before committing catch-up.
+      replaceBeforeCaret(el, live.length, "");
+      resetSegment();
+    }
+    replaceBeforeCaret(el, 0, text);
+    wroteFinal = true;
+    return true;
+  }
+
+  /** Delete characters before the caret (used when Clear wipes typed transcript). */
+  function retract(count: number): boolean {
+    const el = targetElement();
+    if (!el) return false;
+    if (!isGoogleDocs) prepareCaret(el);
+    const remove = Math.max(0, count) + live.length;
+    if (remove) replaceBeforeCaret(el, remove, "");
+    resetSegment();
+    wroteFinal = false;
+    return true;
+  }
+
   chrome.runtime.onMessage.addListener((message: InserterMessage, _sender, sendResponse) => {
     if (message.type === "sac-sync") {
       sendResponse(sync(message.text, message.final));
+    } else if (message.type === "sac-commit") {
+      sendResponse(commit(message.text));
+    } else if (message.type === "sac-retract") {
+      sendResponse(retract(message.count));
     } else if (message.type === "sac-reset") {
       resetSegment();
       wroteFinal = false;

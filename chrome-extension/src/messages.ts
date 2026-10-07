@@ -62,8 +62,16 @@ export type PopupCommand =
 /** Service worker -> popup. */
 export type PopupUpdate = { kind: "snapshot"; snapshot: Snapshot };
 
-/** Service worker -> content script in the locked frame. Mirrored in content.ts, which can't import. */
-export type InserterMessage = { type: "sac-sync"; text: string; final: boolean } | { type: "sac-reset" };
+/**
+ * Service worker -> content script in the locked frame. Mirrored in content.ts, which can't import.
+ * sac-commit inserts catch-up text verbatim (spacing already decided by the background).
+ * sac-retract deletes `count` characters before the caret (Clear while locked).
+ */
+export type InserterMessage =
+  | { type: "sac-sync"; text: string; final: boolean }
+  | { type: "sac-commit"; text: string }
+  | { type: "sac-retract"; count: number }
+  | { type: "sac-reset" };
 
 export interface InserterProbe {
   editable: boolean;
